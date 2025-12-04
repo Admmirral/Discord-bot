@@ -1,6 +1,6 @@
 import os
 import discord
-import requests
+import cloudscraper
 from bs4 import BeautifulSoup
 from aiohttp import web
 import asyncio
@@ -14,15 +14,19 @@ TARGET_DIV_ID = "getpin"
 intents = discord.Intents.default()
 bot = discord.Client(intents=intents)
 
+# Scraper که Cloudflare را دور می‌زند
+scraper = cloudscraper.create_scraper()
+
 def get_pin():
     try:
-        r = requests.get(TARGET_URL, timeout=10)
-        r.raise_for_status()
-        soup = BeautifulSoup(r.text, "html.parser")
+        html = scraper.get(TARGET_URL).text
+        soup = BeautifulSoup(html, "html.parser")
         div = soup.find("div", {"id": TARGET_DIV_ID})
         if div:
             return div.text.strip()
+
         return "❌ div پیدا نشد (getpin)"
+
     except Exception as e:
         return f"❌ خطا: {e}"
 
@@ -38,6 +42,7 @@ async def on_message(message):
     if message.content.startswith("/code"):
         pin = get_pin()
         await message.channel.send(f"🔢 پین سایت: **{pin}**")
+
 
 # ---------- Web Server برای UptimeRobot ----------
 async def handle(request):
