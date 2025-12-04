@@ -1,15 +1,17 @@
 import os
 import discord
 from discord.ext import commands
+from aiohttp import web
 import aiohttp
 import re
+import asyncio
 
-# ------------------------------
-# تنظیمات
-# ------------------------------
-TARGET_URL = "https://example.com/page"   # آدرس صفحه
-TARGET_DIV_ID = "myDivId"                 # ID همان div
-# ------------------------------
+# -------------------------------
+# تنظیمات سایت
+# -------------------------------
+TARGET_URL = "https://example.com/page"   # آدرس سایت
+TARGET_DIV_ID = "myDivId"                 # ID div
+# -------------------------------
 
 TOKEN = os.getenv("DISCORD_TOKEN")
 
@@ -26,7 +28,6 @@ async def fetch_div_value():
 
             html = await resp.text()
 
-    # Regex پیدا کردن div
     safe_id = re.escape(TARGET_DIV_ID)
     pattern = rf'<div[^>]+id=["\']{safe_id}["\'][^>]*>(.*?)</div>'
     match = re.search(pattern, html, re.DOTALL | re.IGNORECASE)
@@ -34,18 +35,42 @@ async def fetch_div_value():
     if not match:
         return "div موردنظر پیدا نشد!"
 
-    # پاک کردن تگ‌های HTML
     text = re.sub(r"<[^>]+>", "", match.group(1)).strip()
-
     return text if text else "div خالی بود"
 
 
 @bot.command()
 async def code(ctx):
-    """دستور !code"""
-    await ctx.send("⏳ در حال دریافت اطلاعات...")
+    """!code → مقدار div را می‌گیرد"""
+    await ctx.send("⏳ در حال دریافت...")
     result = await fetch_div_value()
     await ctx.send(f"📌 نتیجه:\n`{result}`")
 
 
-bot.run(TOKEN)
+# -------------------------------
+# وب‌سرور کوچک برای UptimeRobot
+# -------------------------------
+async def handle(request):
+    return web.Response(text="Bot is alive")
+
+app = web.Application()
+app.router.add_get("/", handle)
+
+# -------------------------------
+# اجرای همزمان Bot + WebServer
+# -------------------------------
+async def main():
+    loop = asyncio.get_running_loop()
+
+    runner = web.AppRunner(app)
+    await runner.setup()
+
+    site = web.TCPSite(runner, "0.0.0.0", int(os.getenv("PORT", 10000)))
+    await site.start()
+
+    print("Web server started")
+
+    await bot.start(TOKEN)
+
+
+asyncio.run(main())
